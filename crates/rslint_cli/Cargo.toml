@@ -12,3 +12,4 @@ rslint_core = { path = "../rslint_core" }
 rslint_rules = { path = "../rslint_rules" }
 clap = { workspace = true }
 miette = { workspace = true }
+glob = { workspace = true }

@@ -13,3 +13,4 @@ tree-sitter-javascript = "0.25"
 clap = { version = "4", features = ["derive"] }
 miette = { version = "7", features = ["fancy"] }
 thiserror = "2"
+glob = "0.3"

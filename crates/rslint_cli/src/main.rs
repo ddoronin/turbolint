@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::Path;
 use std::process;
 
 use clap::Parser;
@@ -9,8 +10,46 @@ use rslint_rules::all_rules;
 #[derive(Parser)]
 #[command(name = "rslint", about = "A Rust reimplementation of ESLint")]
 struct Cli {
-    /// Files to lint
+    /// Files, directories, or glob patterns to lint
     files: Vec<String>,
+}
+
+const JS_EXTENSIONS: &[&str] = &["js", "mjs", "cjs"];
+
+fn is_glob_pattern(s: &str) -> bool {
+    s.contains('*') || s.contains('?') || s.contains('[')
+}
+
+fn resolve_paths(args: &[String]) -> Vec<String> {
+    let mut paths = Vec::new();
+    for arg in args {
+        if is_glob_pattern(arg) {
+            match glob::glob(arg) {
+                Ok(entries) => {
+                    for entry in entries.flatten() {
+                        if entry.is_file() {
+                            paths.push(entry.display().to_string());
+                        }
+                    }
+                }
+                Err(e) => eprintln!("Invalid glob pattern '{arg}': {e}"),
+            }
+        } else if Path::new(arg).is_dir() {
+            for ext in JS_EXTENSIONS {
+                let pattern = format!("{arg}/**/*.{ext}");
+                if let Ok(entries) = glob::glob(&pattern) {
+                    for entry in entries.flatten() {
+                        paths.push(entry.display().to_string());
+                    }
+                }
+            }
+        } else {
+            paths.push(arg.clone());
+        }
+    }
+    paths.sort();
+    paths.dedup();
+    paths
 }
 
 fn pluralize(word: &str, count: usize) -> String {
@@ -69,11 +108,17 @@ fn main() {
         process::exit(1);
     }
 
+    let resolved = resolve_paths(&cli.files);
+    if resolved.is_empty() {
+        eprintln!("No matching files found.");
+        process::exit(1);
+    }
+
     let linter = Linter::new(all_rules());
     let mut error_count: usize = 0;
     let mut warning_count: usize = 0;
 
-    for path in &cli.files {
+    for path in &resolved {
         let source = match fs::read_to_string(path) {
             Ok(s) => s,
             Err(e) => {
