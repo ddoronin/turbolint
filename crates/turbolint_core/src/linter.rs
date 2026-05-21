@@ -1,9 +1,9 @@
-use crate::diagnostic::Diagnostic;
+use crate::diagnostic::{Diagnostic, Severity};
 use crate::disable_directives::filter_disabled;
 use crate::fixer::apply_fixes;
 use crate::line_index::LineIndex;
 use crate::rule::Rule;
-use crate::traverser::run_rules;
+use crate::traverser::{run_rules, run_rules_with_severities};
 
 const MAX_AUTOFIX_PASSES: usize = 10;
 
@@ -21,11 +21,22 @@ pub struct FixResult {
 
 pub struct Linter {
     rules: Vec<Box<dyn Rule>>,
+    severity_overrides: Option<Vec<Severity>>,
 }
 
 impl Linter {
     pub fn new(rules: Vec<Box<dyn Rule>>) -> Self {
-        Self { rules }
+        Self {
+            rules,
+            severity_overrides: None,
+        }
+    }
+
+    pub fn with_severities(rules: Vec<Box<dyn Rule>>, severities: Vec<Severity>) -> Self {
+        Self {
+            rules,
+            severity_overrides: Some(severities),
+        }
     }
 
     pub fn lint(&self, source: &str) -> LintResult {
@@ -40,7 +51,11 @@ impl Linter {
         }
 
         let root = tree.root_node();
-        let diagnostics = run_rules(root, &self.rules, source);
+        let diagnostics = if let Some(ref severities) = self.severity_overrides {
+            run_rules_with_severities(root, &self.rules, severities, source)
+        } else {
+            run_rules(root, &self.rules, source)
+        };
         let diagnostics = filter_disabled(diagnostics, source, &line_index);
         LintResult {
             diagnostics,

@@ -4,7 +4,7 @@ A port of [ESLint](https://eslint.org/) to Rust, aiming to be a fast drop-in rep
 
 turbolint reimplements ESLint's rules natively in Rust, producing the same output format. The goal is full compatibility with ESLint's behavior — same rule names, same diagnostics, same exit codes.
 
-> **Note:** turbolint is in early development. It does not yet read `eslint.config.js` or support ESLint's full feature set. All implemented rules run unconditionally on every file. See [Current limitations](#current-limitations) for details.
+> **Note:** turbolint is in early development. It supports `eslint.config.js` for rule configuration but does not yet cover ESLint's full feature set. See [Current limitations](#current-limitations) for details.
 
 ## Installation
 
@@ -74,10 +74,9 @@ Today, turbolint can be used alongside ESLint to get faster feedback on the rule
 
 ## Current limitations
 
-- **No config file support** — `eslint.config.js` is not read yet. All implemented rules run on every file.
 - **Partial rule coverage** — 292 of ESLint's 294 rules are ported. See below for the current list.
-- **No autofix** — `--fix` is not yet supported.
 - **No plugins** — only built-in rules are available.
+- **Config requires Node.js** — `eslint.config.js` is evaluated via Node.js. Without Node.js installed, config files are skipped and all rules run at default severity.
 
 ## Supported rules (292 / 294)
 
