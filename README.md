@@ -32,11 +32,14 @@ The binary will be at `target/release/rslint`.
 
 ## Usage
 
-Pass one or more JavaScript files to lint:
+Pass files, directories, or glob patterns:
 
 ```sh
 rslint file.js
 rslint src/index.js src/utils.js
+rslint src/                        # recursively lint all .js/.mjs/.cjs files
+rslint "src/**/*.js"               # glob pattern (quote to prevent shell expansion)
+rslint src/ test.js                # mix directories and files
 ```
 
 ### Example output
@@ -55,7 +58,7 @@ src/index.js
 
 ## Migrating from ESLint
 
-Once rslint reaches feature parity, the migration will be straightforward — replace `eslint` with `rslint` in your scripts:
+Replace `eslint` with `rslint` in your scripts:
 
 ```diff
  // package.json
@@ -72,7 +75,6 @@ Today, rslint can be used alongside ESLint to get faster feedback on the rules i
 ## Current limitations
 
 - **No config file support** — `eslint.config.js` is not read yet. All implemented rules run on every file.
-- **No directory or glob arguments** — you must pass individual file paths.
 - **Partial rule coverage** — 292 of ESLint's 294 rules are ported. See below for the current list.
 - **No autofix** — `--fix` is not yet supported.
 - **No plugins** — only built-in rules are available.
