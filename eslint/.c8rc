@@ -1,6 +1,0 @@
-{
-  "all": true,
-  "include": ["bin", "conf", "lib", "messages"],
-  "reporter": ["lcov", "text-summary", "cobertura"],
-  "sourceMap": true
-}
