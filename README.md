@@ -4,7 +4,7 @@ A port of [ESLint](https://eslint.org/) to Rust, aiming to be a fast drop-in rep
 
 turbolint reimplements ESLint's rules natively in Rust, producing the same output format. The goal is full compatibility with ESLint's behavior — same rule names, same diagnostics, same exit codes.
 
-> **Note:** turbolint is in early development. It supports `eslint.config.js` for rule configuration but does not yet cover ESLint's full feature set. See [Current limitations](#current-limitations) for details.
+> **Note:** turbolint is in early development. It supports `eslint.config.js` for rule configuration and `--fix` for autofixing, but does not yet cover ESLint's full feature set. See [Current limitations](#current-limitations) for details.
 
 ## Installation
 
@@ -42,6 +42,16 @@ turbolint "src/**/*.js"               # glob pattern (quote to prevent shell exp
 turbolint src/ test.js                # mix directories and files
 ```
 
+### Autofix
+
+Use `--fix` to automatically fix problems where possible:
+
+```sh
+turbolint --fix src/
+```
+
+Rules with autofix support: `eqeqeq`, `no-extra-semi`, `no-floating-decimal`, `no-var`.
+
 ### Example output
 
 ```
@@ -72,11 +82,17 @@ Replace `eslint` with `turbolint` in your scripts:
 
 Today, turbolint can be used alongside ESLint to get faster feedback on the rules it already supports.
 
+## Config
+
+turbolint reads your existing `eslint.config.js` (or `.mjs`/`.cjs`) — no separate config needed. It evaluates the config via Node.js to resolve `files`, `ignores`, and `rules` with their severity levels.
+
+If Node.js is not installed, config files are skipped and all rules run at default severity.
+
 ## Current limitations
 
 - **Partial rule coverage** — 292 of ESLint's 294 rules are ported. See below for the current list.
 - **No plugins** — only built-in rules are available.
-- **Config requires Node.js** — `eslint.config.js` is evaluated via Node.js. Without Node.js installed, config files are skipped and all rules run at default severity.
+- **Limited autofix** — `--fix` is supported but only 4 rules have fixes so far.
 
 ## Supported rules (292 / 294)
 
