@@ -76,14 +76,11 @@ jobs:
       - name: Build
         run: cargo zigbuild --release --target ${{ matrix.target }}
 
-      - name: Copy binary to npm package
-        run: cp target/${{ matrix.target }}/release/${{ matrix.binary }} npm/${{ matrix.npm_pkg }}/
-
-      - name: Upload artifact
+      - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.npm_pkg }}
-          path: npm/${{ matrix.npm_pkg }}/
+          path: target/${{ matrix.target }}/release/${{ matrix.binary }}
 
   publish:
     needs: [check-version, build]
@@ -107,7 +104,7 @@ jobs:
       - name: Copy binaries into npm packages
         run: |
           for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-linux-x64-musl cli-win32-x64; do
-            cp -r artifacts/$pkg/* npm/$pkg/
+            cp artifacts/$pkg/* npm/$pkg/
           done
 
       - name: Publish platform packages
