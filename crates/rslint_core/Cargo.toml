@@ -1,0 +1,9 @@
+[package]
+name = "rslint_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rslint_parser = { path = "../rslint_parser" }
+tree-sitter = { workspace = true }
+thiserror = { workspace = true }

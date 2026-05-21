@@ -1,0 +1,9 @@
+{
+  "name": "test-project",
+  "version": "1.0.0",
+  "description": "Test Node.js project for rslint validation",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  }
+}

@@ -1,0 +1,14 @@
+[package]
+name = "rslint_cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "rslint"
+path = "src/main.rs"
+
+[dependencies]
+rslint_core = { path = "../rslint_core" }
+rslint_rules = { path = "../rslint_rules" }
+clap = { workspace = true }
+miette = { workspace = true }

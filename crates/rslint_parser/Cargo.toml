@@ -1,0 +1,8 @@
+[package]
+name = "rslint_parser"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tree-sitter = { workspace = true }
+tree-sitter-javascript = { workspace = true }

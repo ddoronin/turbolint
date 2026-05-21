@@ -1,0 +1,8 @@
+[package]
+name = "rslint_rules"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rslint_core = { path = "../rslint_core" }
+tree-sitter = { workspace = true }

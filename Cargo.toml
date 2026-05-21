@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "crates/rslint_parser",
+    "crates/rslint_core",
+    "crates/rslint_rules",
+    "crates/rslint_cli",
+]
+resolver = "2"
+
+[workspace.dependencies]
+tree-sitter = "0.25"
+tree-sitter-javascript = "0.25"
+clap = { version = "4", features = ["derive"] }
+miette = { version = "7", features = ["fancy"] }
+thiserror = "2"
