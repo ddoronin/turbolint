@@ -104,10 +104,11 @@ jobs:
         with:
           path: artifacts
 
-      - name: Copy binaries into npm packages
+      - name: Copy binaries into npm packages and set executable
         run: |
           for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-linux-x64-musl cli-win32-x64; do
             cp artifacts/$pkg/* npm/$pkg/
+            chmod +x npm/$pkg/turbolint* 2>/dev/null || true
           done
 
       - name: Publish platform packages
