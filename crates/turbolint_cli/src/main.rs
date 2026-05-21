@@ -121,42 +121,34 @@ fn build_linter_for_file(
     };
 
     let resolved = config.resolve_rules_for_file(file_path);
+    let config_has_any_rules = config.objects.iter().any(|o| !o.rules.is_empty());
 
     // If config has no rule entries at all (e.g. only ignores/files), run all rules at defaults
-    if resolved.is_empty() && config.objects.iter().all(|o| o.rules.is_empty()) {
+    if !config_has_any_rules {
         return Linter::new(rules);
     }
 
+    // If config defines rules but none resolved for this file (e.g. file doesn't match
+    // any `files` pattern), only run rules that resolved. If resolved is empty, no rules run.
     let mut filtered_rules: Vec<Box<dyn Rule>> = Vec::new();
     let mut severities: Vec<Severity> = Vec::new();
 
     for rule in rules {
         let name = rule.name();
-        match resolved.get(name) {
-            Some(rc) => {
-                if rc.severity == ConfigSeverity::Off {
-                    continue; // Rule disabled
-                }
-                let severity = match rc.severity {
-                    ConfigSeverity::Warn => Severity::Warning,
-                    ConfigSeverity::Error => Severity::Error,
-                    ConfigSeverity::Off => unreachable!(),
-                };
-                severities.push(severity);
-                filtered_rules.push(rule);
+        if let Some(rc) = resolved.get(name) {
+            if rc.severity == ConfigSeverity::Off {
+                continue; // Rule disabled
             }
-            None => {
-                // Rule not mentioned in config — if the config defines any rules,
-                // treat unmentioned rules as disabled (ESLint behavior: only
-                // explicitly configured rules run).
-                // But if no rules are configured at all, keep defaults.
-                if !resolved.is_empty() {
-                    continue;
-                }
-                severities.push(rule.default_severity());
-                filtered_rules.push(rule);
-            }
+            let severity = match rc.severity {
+                ConfigSeverity::Warn => Severity::Warning,
+                ConfigSeverity::Error => Severity::Error,
+                ConfigSeverity::Off => unreachable!(),
+            };
+            severities.push(severity);
+            filtered_rules.push(rule);
         }
+        // Rules not mentioned in resolved config are disabled (ESLint behavior:
+        // only explicitly configured rules run)
     }
 
     Linter::with_severities(filtered_rules, severities)

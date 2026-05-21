@@ -421,4 +421,299 @@ mod tests {
         assert_eq!(objects[0].rules.len(), 3);
         assert_eq!(objects[1].ignores.len(), 1);
     }
+
+    #[test]
+    fn parse_severity_zero_is_off() {
+        let setting = RuleSetting::Severity(SeverityValue::Number(0));
+        assert_eq!(parse_severity(&setting), ConfigSeverity::Off);
+    }
+
+    #[test]
+    fn parse_severity_array_numeric() {
+        let setting = RuleSetting::WithOptions(vec![serde_json::json!(0)]);
+        assert_eq!(parse_severity(&setting), ConfigSeverity::Off);
+    }
+
+    #[test]
+    fn parse_severity_unknown_string_defaults_to_error() {
+        let setting = RuleSetting::Severity(SeverityValue::String("invalid".to_string()));
+        assert_eq!(parse_severity(&setting), ConfigSeverity::Error);
+    }
+
+    #[test]
+    fn resolve_multiple_rules_in_one_object() {
+        let config = Config {
+            objects: vec![ConfigObject {
+                files: vec![],
+                ignores: vec![],
+                rules: HashMap::from([
+                    (
+                        "no-var".to_string(),
+                        RuleSetting::Severity(SeverityValue::String("error".to_string())),
+                    ),
+                    (
+                        "eqeqeq".to_string(),
+                        RuleSetting::Severity(SeverityValue::String("warn".to_string())),
+                    ),
+                    (
+                        "no-debugger".to_string(),
+                        RuleSetting::Severity(SeverityValue::String("off".to_string())),
+                    ),
+                ]),
+            }],
+        };
+        let resolved = config.resolve_rules_for_file("test.js");
+        assert_eq!(resolved.len(), 3);
+        assert_eq!(resolved["no-var"].severity, ConfigSeverity::Error);
+        assert_eq!(resolved["eqeqeq"].severity, ConfigSeverity::Warn);
+        assert_eq!(resolved["no-debugger"].severity, ConfigSeverity::Off);
+    }
+
+    #[test]
+    fn resolve_rules_ignores_do_not_affect_non_matching_files() {
+        let config = Config {
+            objects: vec![ConfigObject {
+                files: vec![],
+                ignores: vec![StringOrStrings::Single("vendor/**".to_string())],
+                rules: HashMap::from([(
+                    "no-var".to_string(),
+                    RuleSetting::Severity(SeverityValue::Number(2)),
+                )]),
+            }],
+        };
+        let resolved = config.resolve_rules_for_file("src/app.js");
+        assert_eq!(resolved["no-var"].severity, ConfigSeverity::Error);
+    }
+
+    #[test]
+    fn resolve_rules_files_multiple_patterns() {
+        let config = Config {
+            objects: vec![ConfigObject {
+                files: vec![StringOrStrings::Multiple(vec![
+                    "**/*.js".to_string(),
+                    "**/*.mjs".to_string(),
+                ])],
+                ignores: vec![],
+                rules: HashMap::from([(
+                    "eqeqeq".to_string(),
+                    RuleSetting::Severity(SeverityValue::String("warn".to_string())),
+                )]),
+            }],
+        };
+        assert_eq!(
+            config.resolve_rules_for_file("src/foo.mjs")["eqeqeq"].severity,
+            ConfigSeverity::Warn
+        );
+        assert_eq!(
+            config.resolve_rules_for_file("src/foo.js")["eqeqeq"].severity,
+            ConfigSeverity::Warn
+        );
+        assert!(config.resolve_rules_for_file("src/foo.ts").is_empty());
+    }
+
+    #[test]
+    fn resolve_empty_config_gives_no_rules() {
+        let config = Config { objects: vec![] };
+        let resolved = config.resolve_rules_for_file("test.js");
+        assert!(resolved.is_empty());
+    }
+
+    #[test]
+    fn resolve_ignore_only_object_gives_no_rules() {
+        let config = Config {
+            objects: vec![ConfigObject {
+                files: vec![],
+                ignores: vec![StringOrStrings::Single("dist/**".to_string())],
+                rules: HashMap::new(),
+            }],
+        };
+        let resolved = config.resolve_rules_for_file("src/app.js");
+        assert!(resolved.is_empty());
+    }
+
+    #[test]
+    fn resolve_partial_override_merges_rules() {
+        let config = Config {
+            objects: vec![
+                ConfigObject {
+                    files: vec![],
+                    ignores: vec![],
+                    rules: HashMap::from([
+                        (
+                            "no-var".to_string(),
+                            RuleSetting::Severity(SeverityValue::String("error".to_string())),
+                        ),
+                        (
+                            "eqeqeq".to_string(),
+                            RuleSetting::Severity(SeverityValue::String("error".to_string())),
+                        ),
+                    ]),
+                },
+                ConfigObject {
+                    files: vec![],
+                    ignores: vec![],
+                    rules: HashMap::from([(
+                        "no-var".to_string(),
+                        RuleSetting::Severity(SeverityValue::String("warn".to_string())),
+                    )]),
+                },
+            ],
+        };
+        let resolved = config.resolve_rules_for_file("test.js");
+        // no-var overridden to warn, eqeqeq stays error
+        assert_eq!(resolved["no-var"].severity, ConfigSeverity::Warn);
+        assert_eq!(resolved["eqeqeq"].severity, ConfigSeverity::Error);
+    }
+
+    #[test]
+    fn resolve_file_specific_override() {
+        let config = Config {
+            objects: vec![
+                ConfigObject {
+                    files: vec![],
+                    ignores: vec![],
+                    rules: HashMap::from([(
+                        "no-var".to_string(),
+                        RuleSetting::Severity(SeverityValue::String("error".to_string())),
+                    )]),
+                },
+                ConfigObject {
+                    files: vec![StringOrStrings::Single("test/**".to_string())],
+                    ignores: vec![],
+                    rules: HashMap::from([(
+                        "no-var".to_string(),
+                        RuleSetting::Severity(SeverityValue::String("off".to_string())),
+                    )]),
+                },
+            ],
+        };
+        // Test files get no-var turned off
+        assert_eq!(
+            config.resolve_rules_for_file("test/foo.js")["no-var"].severity,
+            ConfigSeverity::Off
+        );
+        // Source files keep no-var as error
+        assert_eq!(
+            config.resolve_rules_for_file("src/foo.js")["no-var"].severity,
+            ConfigSeverity::Error
+        );
+    }
+
+    #[test]
+    fn find_config_file_in_dir() {
+        let dir = std::env::temp_dir().join("turbolint_test_find_config");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let config_path = dir.join("eslint.config.js");
+        std::fs::write(&config_path, "module.exports = [];").unwrap();
+
+        let found = find_config_file(&dir);
+        assert_eq!(found, Some(config_path));
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn find_config_file_walks_up() {
+        let parent = std::env::temp_dir().join("turbolint_test_walk_up");
+        let child = parent.join("src");
+        let _ = std::fs::remove_dir_all(&parent);
+        std::fs::create_dir_all(&child).unwrap();
+        let config_path = parent.join("eslint.config.js");
+        std::fs::write(&config_path, "module.exports = [];").unwrap();
+
+        let found = find_config_file(&child);
+        assert_eq!(found, Some(config_path));
+
+        std::fs::remove_dir_all(&parent).unwrap();
+    }
+
+    #[test]
+    fn find_config_file_prefers_js_over_mjs() {
+        let dir = std::env::temp_dir().join("turbolint_test_priority");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("eslint.config.js"), "").unwrap();
+        std::fs::write(dir.join("eslint.config.mjs"), "").unwrap();
+
+        let found = find_config_file(&dir);
+        assert_eq!(found, Some(dir.join("eslint.config.js")));
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn load_config_file_with_node() {
+        if !node_available() {
+            return; // Skip if Node.js not installed
+        }
+        let dir = std::env::temp_dir().join("turbolint_test_load");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let config_path = dir.join("eslint.config.cjs");
+        std::fs::write(
+            &config_path,
+            r#"module.exports = [
+                { rules: { "no-var": "error", "eqeqeq": "warn" } },
+                { ignores: ["dist/**"] }
+            ];"#,
+        )
+        .unwrap();
+
+        let config = load_config_file(&config_path).unwrap();
+        assert_eq!(config.objects.len(), 2);
+        let resolved = config.resolve_rules_for_file("src/app.js");
+        assert_eq!(resolved["no-var"].severity, ConfigSeverity::Error);
+        assert_eq!(resolved["eqeqeq"].severity, ConfigSeverity::Warn);
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn load_config_file_single_object() {
+        if !node_available() {
+            return;
+        }
+        let dir = std::env::temp_dir().join("turbolint_test_single_obj");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let config_path = dir.join("eslint.config.cjs");
+        // Non-array config (single object) should be wrapped into array
+        std::fs::write(
+            &config_path,
+            r#"module.exports = { rules: { "no-debugger": "error" } };"#,
+        )
+        .unwrap();
+
+        let config = load_config_file(&config_path).unwrap();
+        assert_eq!(config.objects.len(), 1);
+        let resolved = config.resolve_rules_for_file("test.js");
+        assert_eq!(resolved["no-debugger"].severity, ConfigSeverity::Error);
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn load_config_file_numeric_severity() {
+        if !node_available() {
+            return;
+        }
+        let dir = std::env::temp_dir().join("turbolint_test_numeric");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let config_path = dir.join("eslint.config.cjs");
+        std::fs::write(
+            &config_path,
+            r#"module.exports = [{ rules: { "no-var": 2, "eqeqeq": 1, "no-debugger": 0 } }];"#,
+        )
+        .unwrap();
+
+        let config = load_config_file(&config_path).unwrap();
+        let resolved = config.resolve_rules_for_file("test.js");
+        assert_eq!(resolved["no-var"].severity, ConfigSeverity::Error);
+        assert_eq!(resolved["eqeqeq"].severity, ConfigSeverity::Warn);
+        assert_eq!(resolved["no-debugger"].severity, ConfigSeverity::Off);
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
