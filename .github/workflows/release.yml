@@ -115,10 +115,10 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-linux-x64-musl cli-win32-x64; do
-            npm publish npm/$pkg --provenance --access public
+            npm publish ./npm/$pkg --provenance --access public
           done
 
       - name: Publish main package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish npm/turbolint --provenance --access public
+        run: npm publish ./npm/turbolint --provenance --access public
