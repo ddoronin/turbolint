@@ -1,5 +1,5 @@
 use rslint_core::context::RuleContext;
-use rslint_core::diagnostic::Severity;
+use rslint_core::diagnostic::{Fix, Severity, Span};
 use rslint_core::Rule;
 use tree_sitter::Node;
 
@@ -17,17 +17,27 @@ impl Rule for NoFloatingDecimal {
             return;
         }
         let text = ctx.node_text(node);
+        let start = node.start_byte() as u32;
+        let end = node.end_byte() as u32;
         if text.starts_with('.') {
-            ctx.report(
-                node.start_byte() as u32,
-                node.end_byte() as u32,
+            ctx.report_with_fix(
+                start,
+                end,
                 "A leading decimal point can be confused with a dot.",
+                Fix {
+                    range: Span { start, end },
+                    text: format!("0{text}"),
+                },
             );
         } else if text.ends_with('.') {
-            ctx.report(
-                node.start_byte() as u32,
-                node.end_byte() as u32,
+            ctx.report_with_fix(
+                start,
+                end,
                 "A trailing decimal point can be confused with a dot.",
+                Fix {
+                    range: Span { start, end },
+                    text: format!("{text}0"),
+                },
             );
         }
     }
@@ -36,7 +46,7 @@ impl Rule for NoFloatingDecimal {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::lint;
+    use crate::test_helpers::{assert_fix, lint};
 
     #[test]
     fn valid() {
@@ -47,5 +57,21 @@ mod tests {
     fn invalid_leading() {
         let d = lint(Box::new(NoFloatingDecimal), "var x = .5;");
         assert_eq!(d.len(), 1);
+    }
+    #[test]
+    fn fix_leading() {
+        assert_fix(
+            Box::new(NoFloatingDecimal),
+            "var x = .5;",
+            "var x = 0.5;",
+        );
+    }
+    #[test]
+    fn fix_trailing() {
+        assert_fix(
+            Box::new(NoFloatingDecimal),
+            "var x = 1.;",
+            "var x = 1.0;",
+        );
     }
 }

@@ -12,6 +12,10 @@ use rslint_rules::all_rules;
 struct Cli {
     /// Files, directories, or glob patterns to lint
     files: Vec<String>,
+
+    /// Automatically fix problems
+    #[arg(long)]
+    fix: bool,
 }
 
 const JS_EXTENSIONS: &[&str] = &["js", "mjs", "cjs"];
@@ -117,6 +121,7 @@ fn main() {
     let linter = Linter::new(all_rules());
     let mut error_count: usize = 0;
     let mut warning_count: usize = 0;
+    let mut fixable_count: usize = 0;
 
     for path in &resolved {
         let source = match fs::read_to_string(path) {
@@ -128,18 +133,41 @@ fn main() {
             }
         };
 
-        let result = linter.lint(&source);
-        if result.diagnostics.is_empty() {
-            continue;
-        }
-
-        for d in &result.diagnostics {
-            match d.severity {
-                Severity::Error => error_count += 1,
-                Severity::Warning => warning_count += 1,
+        if cli.fix {
+            let result = linter.lint_and_fix(&source);
+            if result.fixed {
+                if let Err(e) = fs::write(path, &result.output) {
+                    eprintln!("Error writing {path}: {e}");
+                    error_count += 1;
+                    continue;
+                }
             }
+            if result.diagnostics.is_empty() {
+                continue;
+            }
+            for d in &result.diagnostics {
+                match d.severity {
+                    Severity::Error => error_count += 1,
+                    Severity::Warning => warning_count += 1,
+                }
+            }
+            print_results(path, &result.diagnostics, &result.line_index);
+        } else {
+            let result = linter.lint(&source);
+            if result.diagnostics.is_empty() {
+                continue;
+            }
+            for d in &result.diagnostics {
+                match d.severity {
+                    Severity::Error => error_count += 1,
+                    Severity::Warning => warning_count += 1,
+                }
+                if d.fix.is_some() {
+                    fixable_count += 1;
+                }
+            }
+            print_results(path, &result.diagnostics, &result.line_index);
         }
-        print_results(path, &result.diagnostics, &result.line_index);
     }
 
     let total = error_count + warning_count;
@@ -151,6 +179,13 @@ fn main() {
             pluralize("error", error_count),
             pluralize("warning", warning_count),
         );
+        if !cli.fix && fixable_count > 0 {
+            println!(
+                "  {} {} potentially fixable with the `--fix` option.",
+                fixable_count,
+                pluralize("problem", fixable_count),
+            );
+        }
         println!();
     }
 

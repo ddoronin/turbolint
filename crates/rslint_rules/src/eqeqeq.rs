@@ -1,5 +1,5 @@
 use rslint_core::context::RuleContext;
-use rslint_core::diagnostic::Severity;
+use rslint_core::diagnostic::{Fix, Severity, Span};
 use rslint_core::Rule;
 use tree_sitter::Node;
 
@@ -21,19 +21,29 @@ impl Rule for Eqeqeq {
             None => return,
         };
         let op_text = ctx.node_text(&op);
+        let start = op.start_byte() as u32;
+        let end = op.end_byte() as u32;
         match op_text {
             "==" => {
-                ctx.report(
-                    op.start_byte() as u32,
-                    op.end_byte() as u32,
+                ctx.report_with_fix(
+                    start,
+                    end,
                     "Expected '===' and instead saw '=='.",
+                    Fix {
+                        range: Span { start, end },
+                        text: "===".to_string(),
+                    },
                 );
             }
             "!=" => {
-                ctx.report(
-                    op.start_byte() as u32,
-                    op.end_byte() as u32,
+                ctx.report_with_fix(
+                    start,
+                    end,
                     "Expected '!==' and instead saw '!='.",
+                    Fix {
+                        range: Span { start, end },
+                        text: "!==".to_string(),
+                    },
                 );
             }
             _ => {}
@@ -44,7 +54,7 @@ impl Rule for Eqeqeq {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::lint;
+    use crate::test_helpers::{assert_fix, lint};
 
     #[test]
     fn valid() {
@@ -60,5 +70,13 @@ mod tests {
     fn invalid_neq() {
         let d = lint(Box::new(Eqeqeq), "if (a != b) {}");
         assert_eq!(d.len(), 1);
+    }
+    #[test]
+    fn fix_eq() {
+        assert_fix(Box::new(Eqeqeq), "if (a == b) {}", "if (a === b) {}");
+    }
+    #[test]
+    fn fix_neq() {
+        assert_fix(Box::new(Eqeqeq), "if (a != b) {}", "if (a !== b) {}");
     }
 }
