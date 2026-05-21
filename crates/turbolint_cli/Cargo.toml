@@ -1,0 +1,15 @@
+[package]
+name = "turbolint_cli"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "turbolint"
+path = "src/main.rs"
+
+[dependencies]
+turbolint_core = { path = "../turbolint_core" }
+turbolint_rules = { path = "../turbolint_rules" }
+clap = { workspace = true }
+miette = { workspace = true }
+glob = { workspace = true }

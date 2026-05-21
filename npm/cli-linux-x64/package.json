@@ -1,9 +1,9 @@
 {
-  "name": "@rustlint/cli-linux-x64",
+  "name": "@turbolint/cli-linux-x64",
   "version": "0.1.0",
-  "description": "rslint native binary for Linux x64 (glibc)",
+  "description": "turbolint native binary for Linux x64 (glibc)",
   "license": "MIT",
   "os": ["linux"],
   "cpu": ["x64"],
-  "files": ["rslint"]
+  "files": ["turbolint"]
 }

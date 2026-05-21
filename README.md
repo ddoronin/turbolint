@@ -1,45 +1,45 @@
-# rslint
+# turbolint
 
 A port of [ESLint](https://eslint.org/) to Rust, aiming to be a fast drop-in replacement.
 
-rslint reimplements ESLint's rules natively in Rust, producing the same output format. The goal is full compatibility with ESLint's behavior — same rule names, same diagnostics, same exit codes.
+turbolint reimplements ESLint's rules natively in Rust, producing the same output format. The goal is full compatibility with ESLint's behavior — same rule names, same diagnostics, same exit codes.
 
-> **Note:** rslint is in early development. It does not yet read `eslint.config.js` or support ESLint's full feature set. All implemented rules run unconditionally on every file. See [Current limitations](#current-limitations) for details.
+> **Note:** turbolint is in early development. It does not yet read `eslint.config.js` or support ESLint's full feature set. All implemented rules run unconditionally on every file. See [Current limitations](#current-limitations) for details.
 
 ## Installation
 
 ### npm
 
 ```sh
-npm install rslint
+npm install turbolint
 ```
 
 ### Cargo
 
 ```sh
-cargo install rslint
+cargo install turbolint
 ```
 
 ### Build from source
 
 ```sh
-git clone https://github.com/ddoronin/rslint.git
-cd rslint
+git clone https://github.com/ddoronin/turbolint.git
+cd turbolint
 cargo build --release
 ```
 
-The binary will be at `target/release/rslint`.
+The binary will be at `target/release/turbolint`.
 
 ## Usage
 
 Pass files, directories, or glob patterns:
 
 ```sh
-rslint file.js
-rslint src/index.js src/utils.js
-rslint src/                        # recursively lint all .js/.mjs/.cjs files
-rslint "src/**/*.js"               # glob pattern (quote to prevent shell expansion)
-rslint src/ test.js                # mix directories and files
+turbolint file.js
+turbolint src/index.js src/utils.js
+turbolint src/                        # recursively lint all .js/.mjs/.cjs files
+turbolint "src/**/*.js"               # glob pattern (quote to prevent shell expansion)
+turbolint src/ test.js                # mix directories and files
 ```
 
 ### Example output
@@ -58,19 +58,19 @@ src/index.js
 
 ## Migrating from ESLint
 
-Replace `eslint` with `rslint` in your scripts:
+Replace `eslint` with `turbolint` in your scripts:
 
 ```diff
  // package.json
  {
    "scripts": {
 -    "lint": "eslint src/",
-+    "lint": "rslint src/",
++    "lint": "turbolint src/",
    }
  }
 ```
 
-Today, rslint can be used alongside ESLint to get faster feedback on the rules it already supports.
+Today, turbolint can be used alongside ESLint to get faster feedback on the rules it already supports.
 
 ## Current limitations
 

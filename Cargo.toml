@@ -1,9 +1,9 @@
 [workspace]
 members = [
-    "crates/rslint_parser",
-    "crates/rslint_core",
-    "crates/rslint_rules",
-    "crates/rslint_cli",
+    "crates/turbolint_parser",
+    "crates/turbolint_core",
+    "crates/turbolint_rules",
+    "crates/turbolint_cli",
 ]
 resolver = "2"
 

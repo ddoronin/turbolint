@@ -16,10 +16,10 @@ for pkg_json in "$ROOT"/npm/*/package.json; do
 done
 
 # Update optionalDependencies versions in the main package
-sed -i'' -e "s/\"@rslint\/cli-[^\"]*\": \"[^\"]*\"/&/" "$ROOT/npm/rslint/package.json"
+sed -i'' -e "s/\"@turbolint\/cli-[^\"]*\": \"[^\"]*\"/&/" "$ROOT/npm/turbolint/package.json"
 # More targeted: update each optional dep version
 for dep in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-linux-x64-musl cli-win32-x64; do
-  sed -i'' -e "s|\"@rustlint/$dep\": \"[^\"]*\"|\"@rustlint/$dep\": \"$VERSION\"|" "$ROOT/npm/rslint/package.json"
+  sed -i'' -e "s|\"@turbolint/$dep\": \"[^\"]*\"|\"@turbolint/$dep\": \"$VERSION\"|" "$ROOT/npm/turbolint/package.json"
 done
 
 # Update workspace Cargo.toml version (add if missing)

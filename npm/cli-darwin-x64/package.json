@@ -1,9 +1,9 @@
 {
-  "name": "@rustlint/cli-darwin-x64",
+  "name": "@turbolint/cli-darwin-x64",
   "version": "0.1.0",
-  "description": "rslint native binary for macOS x64",
+  "description": "turbolint native binary for macOS x64",
   "license": "MIT",
   "os": ["darwin"],
   "cpu": ["x64"],
-  "files": ["rslint"]
+  "files": ["turbolint"]
 }

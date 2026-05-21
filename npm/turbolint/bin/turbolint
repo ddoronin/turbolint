@@ -1,0 +1,74 @@
+#!/usr/bin/env node
+
+"use strict";
+
+const { spawnSync } = require("child_process");
+const os = require("os");
+const path = require("path");
+
+function getPackageName() {
+  const platform = process.platform;
+  const arch = os.arch();
+
+  if (platform === "darwin" && arch === "arm64") return "@turbolint/cli-darwin-arm64";
+  if (platform === "darwin" && arch === "x64") return "@turbolint/cli-darwin-x64";
+  if (platform === "linux" && arch === "x64") {
+    // Detect musl (Alpine Linux)
+    try {
+      const { execFileSync } = require("child_process");
+      const lddOutput = execFileSync("ldd", ["--version"], {
+        encoding: "utf8",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      if (lddOutput.toLowerCase().includes("musl")) {
+        return "@turbolint/cli-linux-x64-musl";
+      }
+    } catch (e) {
+      // ldd --version exits with 1 on musl, check stderr
+      if (e.stderr && e.stderr.toLowerCase().includes("musl")) {
+        return "@turbolint/cli-linux-x64-musl";
+      }
+    }
+    return "@turbolint/cli-linux-x64";
+  }
+  if (platform === "linux" && arch === "arm64") return "@turbolint/cli-linux-arm64";
+  if (platform === "win32" && arch === "x64") return "@turbolint/cli-win32-x64";
+
+  console.error(`Unsupported platform: ${platform} ${arch}`);
+  console.error("Please open an issue at https://github.com/user/turbolint/issues");
+  process.exit(1);
+}
+
+function getBinaryPath() {
+  // Allow override via environment variable
+  if (process.env.TURBOLINT_BINARY) {
+    return process.env.TURBOLINT_BINARY;
+  }
+
+  const packageName = getPackageName();
+  const binaryName = process.platform === "win32" ? "turbolint.exe" : "turbolint";
+
+  try {
+    const packageDir = path.dirname(require.resolve(`${packageName}/package.json`));
+    return path.join(packageDir, binaryName);
+  } catch (e) {
+    console.error(`Could not find the turbolint binary for your platform.`);
+    console.error(`Expected package: ${packageName}`);
+    console.error();
+    console.error("This may happen if the optional dependency was not installed.");
+    console.error("Try reinstalling with: npm install turbolint");
+    process.exit(1);
+  }
+}
+
+const binaryPath = getBinaryPath();
+const result = spawnSync(binaryPath, process.argv.slice(2), {
+  stdio: "inherit",
+});
+
+if (result.error) {
+  console.error(`Failed to run turbolint binary: ${result.error.message}`);
+  process.exit(1);
+}
+
+process.exit(result.status ?? 1);

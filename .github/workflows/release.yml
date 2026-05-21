@@ -22,9 +22,9 @@ jobs:
       - name: Check npm registry
         id: check
         run: |
-          VERSION=$(node -p "require('./npm/rslint/package.json').version")
+          VERSION=$(node -p "require('./npm/turbolint/package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if npm view rslint@"$VERSION" version 2>/dev/null; then
+          if npm view turbolint@"$VERSION" version 2>/dev/null; then
             echo "Version $VERSION already published, skipping"
             echo "should_publish=false" >> "$GITHUB_OUTPUT"
           else
@@ -41,28 +41,28 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-14
             npm_pkg: cli-darwin-arm64
-            binary: rslint
+            binary: turbolint
           - target: x86_64-apple-darwin
             os: macos-13
             npm_pkg: cli-darwin-x64
-            binary: rslint
+            binary: turbolint
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             npm_pkg: cli-linux-x64
-            binary: rslint
+            binary: turbolint
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             npm_pkg: cli-linux-arm64
-            binary: rslint
+            binary: turbolint
             cross: true
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             npm_pkg: cli-linux-x64-musl
-            binary: rslint
+            binary: turbolint
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             npm_pkg: cli-win32-x64
-            binary: rslint.exe
+            binary: turbolint.exe
 
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.target }}
@@ -132,4 +132,4 @@ jobs:
       - name: Publish main package
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish npm/rslint --provenance --access public
+        run: npm publish npm/turbolint --provenance --access public

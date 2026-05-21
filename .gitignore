@@ -14,8 +14,8 @@ target
 **/mutants.out*/
 
 # npm platform package binaries (built by CI)
-npm/cli-*/rslint
-npm/cli-*/rslint.exe
+npm/cli-*/turbolint
+npm/cli-*/turbolint.exe
 
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

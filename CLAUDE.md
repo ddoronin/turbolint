@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**rslint** is a Rust reimplementation of ESLint. The project is in its earliest stage — no Rust code has been written yet. The `eslint/` directory contains a vendored copy of ESLint v10.4.0 source (JavaScript) as the reference implementation.
+**turbolint** is a Rust reimplementation of ESLint. The project is in its earliest stage — no Rust code has been written yet. The `eslint/` directory contains a vendored copy of ESLint v10.4.0 source (JavaScript) as the reference implementation.
 
 ## Build & Test Commands
 
@@ -17,7 +17,7 @@ No build system is set up yet. When Rust code is added, expect standard Cargo co
 
 ## Reference ESLint Architecture (in `eslint/`)
 
-The vendored ESLint source serves as the specification for what rslint needs to implement. Key components:
+The vendored ESLint source serves as the specification for what turbolint needs to implement. Key components:
 
 - **CLI** (`eslint/lib/cli.js`) — Command-line interface, option parsing, output formatting
 - **ESLint class** (`eslint/lib/eslint/`) — High-level API: file discovery, config loading, orchestrating linting, caching, parallel workers
