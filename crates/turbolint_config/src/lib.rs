@@ -222,6 +222,15 @@ pub fn find_config_file(dir: &Path) -> Option<PathBuf> {
     }
 }
 
+/// Check if Node.js is available on the system.
+pub fn node_available() -> bool {
+    Command::new("node")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
 /// Load the config from a JS config file by evaluating it with Node.js.
 pub fn load_config_file(config_path: &Path) -> Result<Config, String> {
     let abs_path = if config_path.is_absolute() {
@@ -255,11 +264,21 @@ pub fn load_config_file(config_path: &Path) -> Result<Config, String> {
 }
 
 /// Try to load config from the current working directory.
-/// Returns None if no config file is found.
+/// Returns `Ok(None)` if no config file is found or if Node.js is not installed.
 pub fn load_config() -> Result<Option<Config>, String> {
     let cwd = std::env::current_dir().map_err(|e| format!("Failed to get cwd: {e}"))?;
     match find_config_file(&cwd) {
-        Some(path) => load_config_file(&path).map(Some),
+        Some(path) => {
+            if !node_available() {
+                eprintln!(
+                    "Warning: Found {} but Node.js is not installed. \
+                     All rules will run at default severity.",
+                    path.display()
+                );
+                return Ok(None);
+            }
+            load_config_file(&path).map(Some)
+        }
         None => Ok(None),
     }
 }
