@@ -22,15 +22,15 @@ for dep in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-lin
   sed -i'' -e "s|\"@turbolint/$dep\": \"[^\"]*\"|\"@turbolint/$dep\": \"$VERSION\"|" "$ROOT/npm/turbolint/package.json"
 done
 
-# Update workspace Cargo.toml version (add if missing)
+# Update workspace Cargo.toml version under [workspace.package]
 if grep -q '^\[workspace\.package\]' "$ROOT/Cargo.toml"; then
   sed -i'' -e "/^\[workspace\.package\]/,/^\[/ s/^version = \"[^\"]*\"/version = \"$VERSION\"/" "$ROOT/Cargo.toml"
 else
-  # Insert [workspace.package] with version after [workspace]
-  sed -i'' -e "/^\[workspace\]/a\\
-\\
+  # Insert [workspace.package] section before [workspace.dependencies]
+  sed -i'' -e "/^\[workspace\.dependencies\]/i\\
 [workspace.package]\\
-version = \"$VERSION\"" "$ROOT/Cargo.toml"
+version = \"$VERSION\"\\
+" "$ROOT/Cargo.toml"
 fi
 
 echo "Bumped version to $VERSION"
