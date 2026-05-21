@@ -2,15 +2,39 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
 
 permissions:
   contents: read
   id-token: write
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    name: Check if version needs publishing
+    outputs:
+      should_publish: ${{ steps.check.outputs.should_publish }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check npm registry
+        id: check
+        run: |
+          VERSION=$(node -p "require('./npm/rslint/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if npm view rslint@"$VERSION" version 2>/dev/null; then
+            echo "Version $VERSION already published, skipping"
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version $VERSION not found on npm, will publish"
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true'
     strategy:
       matrix:
         include:
@@ -73,7 +97,7 @@ jobs:
           path: npm/${{ matrix.npm_pkg }}/
 
   publish:
-    needs: build
+    needs: [check-version, build]
     runs-on: ubuntu-latest
     name: Publish npm packages
     environment: prod
