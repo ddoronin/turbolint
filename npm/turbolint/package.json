@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "description": "A fast Rust-based ESLint reimplementation",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ddoronin/rslint.git"
+  },
   "bin": {
     "turbolint": "bin/turbolint"
   },

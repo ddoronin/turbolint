@@ -3,7 +3,17 @@
   "version": "0.1.0",
   "description": "turbolint native binary for Windows x64",
   "license": "MIT",
-  "os": ["win32"],
-  "cpu": ["x64"],
-  "files": ["turbolint.exe"]
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ddoronin/rslint.git"
+  },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "files": [
+    "turbolint.exe"
+  ]
 }
