@@ -35,11 +35,17 @@ The vendored ESLint source serves as the specification for what turbolint needs 
 
 ## Versioning
 
-All crates share a single version defined in the workspace root `Cargo.toml`:
+The version must be kept in sync across Rust crates and npm packages. When bumping:
 
-```toml
-[workspace.package]
-version = "0.8.0"
-```
+1. **Root `Cargo.toml`** — update `[workspace.package] version`. All Rust crates inherit it via `version.workspace = true`.
+2. **`npm/**/package.json`** — update the `"version"` field in all 7 packages under `npm/`:
+   - `npm/turbolint/package.json` (also update dependency versions in `optionalDependencies`)
+   - `npm/cli-darwin-arm64/package.json`
+   - `npm/cli-darwin-x64/package.json`
+   - `npm/cli-linux-x64/package.json`
+   - `npm/cli-linux-arm64/package.json`
+   - `npm/cli-linux-x64-musl/package.json`
+   - `npm/cli-win32-x64/package.json`
+3. **`Cargo.lock`** — run `cargo check` to regenerate it.
 
-Each crate inherits it via `version.workspace = true` in its own `Cargo.toml`. To bump the version, **only edit the `version` field in the root `Cargo.toml`** — all crates pick it up automatically. Then run `cargo check` to update `Cargo.lock`.
+All three locations must have the same version string.
