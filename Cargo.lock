@@ -562,7 +562,7 @@ dependencies = [
 
 [[package]]
 name = "turbolint_cli"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "clap",
  "glob",
@@ -574,7 +574,7 @@ dependencies = [
 
 [[package]]
 name = "turbolint_config"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "glob",
  "serde",
@@ -583,7 +583,7 @@ dependencies = [
 
 [[package]]
 name = "turbolint_core"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "thiserror",
  "tree-sitter",
@@ -592,7 +592,7 @@ dependencies = [
 
 [[package]]
 name = "turbolint_parser"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "tree-sitter",
  "tree-sitter-javascript",
@@ -601,7 +601,7 @@ dependencies = [
 
 [[package]]
 name = "turbolint_rules"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "tree-sitter",
  "turbolint_core",

@@ -32,3 +32,14 @@ The vendored ESLint source serves as the specification for what turbolint needs 
 - Config is composable via flat config arrays with cascading/merging
 - Autofixing applies fixes iteratively until stable (max 10 passes)
 - The linter is language-agnostic; language plugins provide parsing and traversal
+
+## Versioning
+
+All crates share a single version defined in the workspace root `Cargo.toml`:
+
+```toml
+[workspace.package]
+version = "0.8.0"
+```
+
+Each crate inherits it via `version.workspace = true` in its own `Cargo.toml`. To bump the version, **only edit the `version` field in the root `Cargo.toml`** — all crates pick it up automatically. Then run `cargo check` to update `Cargo.lock`.
