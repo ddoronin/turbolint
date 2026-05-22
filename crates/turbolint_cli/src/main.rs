@@ -5,7 +5,7 @@ use std::process;
 use clap::Parser;
 use turbolint_config::{Config, ConfigSeverity};
 use turbolint_core::line_index::LineIndex;
-use turbolint_core::{Diagnostic, Linter, Rule, Severity};
+use turbolint_core::{Diagnostic, Language, Linter, Rule, Severity};
 use turbolint_rules::all_rules;
 
 #[derive(Parser)]
@@ -19,7 +19,7 @@ struct Cli {
     fix: bool,
 }
 
-const JS_EXTENSIONS: &[&str] = &["js", "mjs", "cjs", "ts", "tsx"];
+const JS_EXTENSIONS: &[&str] = &["js", "mjs", "cjs", "ts", "mts", "cts", "tsx"];
 const DEFAULT_IGNORES: &[&str] = &["node_modules"];
 
 fn is_glob_pattern(s: &str) -> bool {
@@ -179,8 +179,26 @@ fn main() {
         process::exit(1);
     }
 
+    // Determine the config search directory from the input arguments.
+    // Use the first CLI argument: if it's a directory use it directly,
+    // otherwise use its parent. This mirrors ESLint's behaviour of
+    // searching for eslint.config.js from the target directory upward.
+    let config_search_dir = {
+        let first = Path::new(&cli.files[0]);
+        let abs = if first.is_absolute() {
+            first.to_path_buf()
+        } else {
+            std::env::current_dir().unwrap_or_default().join(first)
+        };
+        if abs.is_dir() {
+            abs
+        } else {
+            abs.parent().unwrap_or(&abs).to_path_buf()
+        }
+    };
+
     // Load config (if present)
-    let config = match turbolint_config::load_config() {
+    let config = match turbolint_config::load_config(&config_search_dir) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Error loading config: {e}");
@@ -209,10 +227,16 @@ fn main() {
             }
         };
 
+        let lang = Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .and_then(Language::from_extension)
+            .unwrap_or(Language::JavaScript);
+
         let linter = build_linter_for_file(&config, path);
 
         if cli.fix {
-            let result = linter.lint_and_fix(&source);
+            let result = linter.lint_and_fix_lang(&source, lang);
             if result.fixed {
                 if let Err(e) = fs::write(path, &result.output) {
                     eprintln!("Error writing {path}: {e}");
@@ -231,7 +255,7 @@ fn main() {
             }
             print_results(path, &result.diagnostics, &result.line_index);
         } else {
-            let result = linter.lint(&source);
+            let result = linter.lint_lang(&source, lang);
             if result.diagnostics.is_empty() {
                 continue;
             }
@@ -272,6 +296,11 @@ fn main() {
 
 /// Check if a file is globally ignored (config objects with only `ignores` and no `files`).
 fn is_globally_ignored(config: &Config, file_path: &str) -> bool {
+    let rel_path = Path::new(file_path)
+        .strip_prefix(&config.config_dir)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| file_path.to_string());
+
     for obj in &config.objects {
         if obj.files.is_empty() && !obj.ignores.is_empty() && obj.rules.is_empty() {
             // This is a global ignore-only config object
@@ -284,7 +313,7 @@ fn is_globally_ignored(config: &Config, file_path: &str) -> bool {
                 };
                 for pattern in patterns {
                     if glob::Pattern::new(pattern)
-                        .map(|p| p.matches(file_path))
+                        .map(|p| p.matches(&rel_path))
                         .unwrap_or(false)
                     {
                         return true;

@@ -9,5 +9,5 @@ pub mod rule;
 pub mod traverser;
 
 pub use diagnostic::{Diagnostic, Severity};
-pub use linter::{FixResult, LintResult, Linter};
+pub use linter::{FixResult, Language, LintResult, Linter};
 pub use rule::Rule;

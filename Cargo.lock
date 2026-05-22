@@ -551,6 +551,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "009994f150cc0cd50ff54917d5bc8bffe8cad10ca10d81c34da2ec421ae61782"
 
 [[package]]
+name = "tree-sitter-typescript"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c5f76ed8d947a75cc446d5fccd8b602ebf0cde64ccf2ffa434d873d7a575eff"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
 name = "turbolint_cli"
 version = "0.1.0"
 dependencies = [
@@ -586,6 +596,7 @@ version = "0.1.0"
 dependencies = [
  "tree-sitter",
  "tree-sitter-javascript",
+ "tree-sitter-typescript",
 ]
 
 [[package]]

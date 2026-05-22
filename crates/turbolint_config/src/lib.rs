@@ -61,6 +61,8 @@ pub struct ResolvedRuleConfig {
 #[derive(Debug, Clone)]
 pub struct Config {
     pub objects: Vec<ConfigObject>,
+    /// Directory containing the config file (used to relativize file paths for pattern matching).
+    pub config_dir: PathBuf,
 }
 
 impl Config {
@@ -69,14 +71,20 @@ impl Config {
     pub fn resolve_rules_for_file(&self, file_path: &str) -> HashMap<String, ResolvedRuleConfig> {
         let mut rules: HashMap<String, ResolvedRuleConfig> = HashMap::new();
 
+        // Make the path relative to the config directory for pattern matching
+        let rel_path = Path::new(file_path)
+            .strip_prefix(&self.config_dir)
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| file_path.to_string());
+
         for obj in &self.objects {
             // Check if this config object applies to the file
-            if !config_matches_file(obj, file_path) {
+            if !config_matches_file(obj, &rel_path) {
                 continue;
             }
 
             // Check if the file is ignored by this config object
-            if is_ignored_by(obj, file_path) {
+            if is_ignored_by(obj, &rel_path) {
                 continue;
             }
 
@@ -129,9 +137,39 @@ fn is_ignored_by(obj: &ConfigObject, file_path: &str) -> bool {
 }
 
 fn glob_matches(pattern: &str, path: &str) -> bool {
-    glob::Pattern::new(pattern)
-        .map(|p| p.matches(path))
-        .unwrap_or(false)
+    // The `glob` crate doesn't support brace expansion ({a,b}).
+    // Expand braces into multiple patterns and match any.
+    for expanded in expand_braces(pattern) {
+        if glob::Pattern::new(&expanded)
+            .map(|p| p.matches(path))
+            .unwrap_or(false)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Expand brace patterns like `*.{ts,tsx}` into `["*.ts", "*.tsx"]`.
+/// Handles one level of braces. If no braces, returns the pattern as-is.
+fn expand_braces(pattern: &str) -> Vec<String> {
+    if let Some(open) = pattern.find('{') {
+        if let Some(close) = pattern[open..].find('}') {
+            let close = open + close;
+            let prefix = &pattern[..open];
+            let suffix = &pattern[close + 1..];
+            let alternatives = &pattern[open + 1..close];
+            let mut result = Vec::new();
+            for alt in alternatives.split(',') {
+                // Recursively expand in case of nested braces in suffix
+                for expanded in expand_braces(&format!("{prefix}{alt}{suffix}")) {
+                    result.push(expanded);
+                }
+            }
+            return result;
+        }
+    }
+    vec![pattern.to_string()]
 }
 
 fn parse_severity(setting: &RuleSetting) -> ConfigSeverity {
@@ -179,7 +217,17 @@ const EVAL_SCRIPT: &str = r#"
 (async () => {
     const path = require('path');
     const configPath = process.argv[1];
-    let config = require(configPath);
+    let config;
+    try {
+        config = require(configPath);
+    } catch (e) {
+        if (e.code === 'ERR_REQUIRE_ESM' || e.code === 'ERR_REQUIRE_ASYNC_MODULE') {
+            const url = require('url');
+            config = await import(url.pathToFileURL(configPath).href);
+        } else {
+            throw e;
+        }
+    }
     // Handle default export (ESM-style)
     if (config && config.default) config = config.default;
     // Handle promise
@@ -260,14 +308,14 @@ pub fn load_config_file(config_path: &Path) -> Result<Config, String> {
     let objects: Vec<ConfigObject> =
         serde_json::from_str(&stdout).map_err(|e| format!("Failed to parse config JSON: {e}"))?;
 
-    Ok(Config { objects })
+    let config_dir = abs_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+    Ok(Config { objects, config_dir })
 }
 
 /// Try to load config from the current working directory.
 /// Returns `Ok(None)` if no config file is found or if Node.js is not installed.
-pub fn load_config() -> Result<Option<Config>, String> {
-    let cwd = std::env::current_dir().map_err(|e| format!("Failed to get cwd: {e}"))?;
-    match find_config_file(&cwd) {
+pub fn load_config(start_dir: &Path) -> Result<Option<Config>, String> {
+    match find_config_file(start_dir) {
         Some(path) => {
             if !node_available() {
                 eprintln!(
@@ -314,6 +362,7 @@ mod tests {
     #[test]
     fn resolve_rules_no_files_pattern() {
         let config = Config {
+            config_dir: PathBuf::new(),
             objects: vec![ConfigObject {
                 files: vec![],
                 ignores: vec![],
@@ -330,6 +379,7 @@ mod tests {
     #[test]
     fn resolve_rules_with_files_match() {
         let config = Config {
+            config_dir: PathBuf::new(),
             objects: vec![ConfigObject {
                 files: vec![StringOrStrings::Single("**/*.js".to_string())],
                 ignores: vec![],
@@ -346,6 +396,7 @@ mod tests {
     #[test]
     fn resolve_rules_with_files_no_match() {
         let config = Config {
+            config_dir: PathBuf::new(),
             objects: vec![ConfigObject {
                 files: vec![StringOrStrings::Single("**/*.ts".to_string())],
                 ignores: vec![],
@@ -362,6 +413,7 @@ mod tests {
     #[test]
     fn resolve_rules_ignores() {
         let config = Config {
+            config_dir: PathBuf::new(),
             objects: vec![ConfigObject {
                 files: vec![],
                 ignores: vec![StringOrStrings::Single("vendor/**".to_string())],
@@ -378,6 +430,7 @@ mod tests {
     #[test]
     fn resolve_rules_later_overrides_earlier() {
         let config = Config {
+            config_dir: PathBuf::new(),
             objects: vec![
                 ConfigObject {
                     files: vec![],
@@ -443,6 +496,7 @@ mod tests {
     #[test]
     fn resolve_multiple_rules_in_one_object() {
         let config = Config {
+            config_dir: PathBuf::new(),
             objects: vec![ConfigObject {
                 files: vec![],
                 ignores: vec![],
@@ -472,6 +526,7 @@ mod tests {
     #[test]
     fn resolve_rules_ignores_do_not_affect_non_matching_files() {
         let config = Config {
+            config_dir: PathBuf::new(),
             objects: vec![ConfigObject {
                 files: vec![],
                 ignores: vec![StringOrStrings::Single("vendor/**".to_string())],
@@ -488,6 +543,7 @@ mod tests {
     #[test]
     fn resolve_rules_files_multiple_patterns() {
         let config = Config {
+            config_dir: PathBuf::new(),
             objects: vec![ConfigObject {
                 files: vec![StringOrStrings::Multiple(vec![
                     "**/*.js".to_string(),
@@ -513,7 +569,7 @@ mod tests {
 
     #[test]
     fn resolve_empty_config_gives_no_rules() {
-        let config = Config { objects: vec![] };
+        let config = Config { config_dir: PathBuf::new(), objects: vec![] };
         let resolved = config.resolve_rules_for_file("test.js");
         assert!(resolved.is_empty());
     }
@@ -521,6 +577,7 @@ mod tests {
     #[test]
     fn resolve_ignore_only_object_gives_no_rules() {
         let config = Config {
+            config_dir: PathBuf::new(),
             objects: vec![ConfigObject {
                 files: vec![],
                 ignores: vec![StringOrStrings::Single("dist/**".to_string())],
@@ -534,6 +591,7 @@ mod tests {
     #[test]
     fn resolve_partial_override_merges_rules() {
         let config = Config {
+            config_dir: PathBuf::new(),
             objects: vec![
                 ConfigObject {
                     files: vec![],
@@ -568,6 +626,7 @@ mod tests {
     #[test]
     fn resolve_file_specific_override() {
         let config = Config {
+            config_dir: PathBuf::new(),
             objects: vec![
                 ConfigObject {
                     files: vec![],

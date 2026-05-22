@@ -5,6 +5,8 @@ use crate::line_index::LineIndex;
 use crate::rule::Rule;
 use crate::traverser::{run_rules, run_rules_with_severities};
 
+pub use turbolint_parser::Language;
+
 const MAX_AUTOFIX_PASSES: usize = 10;
 
 pub struct LintResult {
@@ -40,8 +42,12 @@ impl Linter {
     }
 
     pub fn lint(&self, source: &str) -> LintResult {
+        self.lint_lang(source, Language::JavaScript)
+    }
+
+    pub fn lint_lang(&self, source: &str, lang: Language) -> LintResult {
         let line_index = LineIndex::new(source);
-        let tree = turbolint_parser::parse(source);
+        let tree = turbolint_parser::parse_lang(source, lang);
 
         if tree.root_node().has_error() {
             return LintResult {
@@ -64,12 +70,16 @@ impl Linter {
     }
 
     pub fn lint_and_fix(&self, source: &str) -> FixResult {
+        self.lint_and_fix_lang(source, Language::JavaScript)
+    }
+
+    pub fn lint_and_fix_lang(&self, source: &str, lang: Language) -> FixResult {
         let mut current = source.to_string();
         let mut fixed = false;
         let mut prev_prev: Option<String> = None;
 
         for _ in 0..MAX_AUTOFIX_PASSES {
-            let result = self.lint(&current);
+            let result = self.lint_lang(&current, lang);
             let apply = apply_fixes(&current, result.diagnostics);
             if !apply.fixed {
                 break;
@@ -86,7 +96,7 @@ impl Linter {
         }
 
         // Final lint pass for accurate diagnostics
-        let final_result = self.lint(&current);
+        let final_result = self.lint_lang(&current, lang);
         FixResult {
             output: current,
             fixed,
