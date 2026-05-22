@@ -20,9 +20,18 @@ struct Cli {
 }
 
 const JS_EXTENSIONS: &[&str] = &["js", "mjs", "cjs"];
+const DEFAULT_IGNORES: &[&str] = &["node_modules"];
 
 fn is_glob_pattern(s: &str) -> bool {
     s.contains('*') || s.contains('?') || s.contains('[')
+}
+
+fn is_default_ignored(path: &Path) -> bool {
+    path.components().any(|c| {
+        DEFAULT_IGNORES
+            .iter()
+            .any(|ig| c.as_os_str() == std::ffi::OsStr::new(ig))
+    })
 }
 
 fn resolve_paths(args: &[String]) -> Vec<String> {
@@ -44,7 +53,9 @@ fn resolve_paths(args: &[String]) -> Vec<String> {
                 let pattern = format!("{arg}/**/*.{ext}");
                 if let Ok(entries) = glob::glob(&pattern) {
                     for entry in entries.flatten() {
-                        paths.push(entry.display().to_string());
+                        if entry.is_file() && !is_default_ignored(&entry) {
+                            paths.push(entry.display().to_string());
+                        }
                     }
                 }
             }
