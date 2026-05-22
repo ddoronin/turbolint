@@ -19,7 +19,7 @@ struct Cli {
     fix: bool,
 }
 
-const JS_EXTENSIONS: &[&str] = &["js", "mjs", "cjs"];
+const JS_EXTENSIONS: &[&str] = &["js", "mjs", "cjs", "ts", "tsx"];
 const DEFAULT_IGNORES: &[&str] = &["node_modules"];
 
 fn is_glob_pattern(s: &str) -> bool {
