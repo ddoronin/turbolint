@@ -1,7 +1,7 @@
 use tree_sitter::Node;
 
 use turbolint_core::context::RuleContext;
-use turbolint_core::diagnostic::Severity;
+use turbolint_core::diagnostic::{Fix, Severity, Span};
 use turbolint_core::Rule;
 
 pub struct NoDebugger;
@@ -17,10 +17,16 @@ impl Rule for NoDebugger {
 
     fn on_node(&self, node: &Node, ctx: &RuleContext) {
         if node.kind() == "debugger_statement" {
-            ctx.report(
-                node.start_byte() as u32,
-                node.end_byte() as u32,
+            let start = node.start_byte() as u32;
+            let end = node.end_byte() as u32;
+            ctx.report_with_fix(
+                start,
+                end,
                 "Unexpected 'debugger' statement.",
+                Fix {
+                    range: Span { start, end },
+                    text: String::new(),
+                },
             );
         }
     }
@@ -49,6 +55,22 @@ mod tests {
     fn no_error_on_clean_code() {
         let diagnostics = lint("var x = 1;");
         assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn autofix_removes_debugger() {
+        let linter = Linter::new(vec![Box::new(NoDebugger)]);
+        let result = linter.lint_and_fix("debugger;");
+        assert!(result.fixed);
+        assert_eq!(result.output, "");
+    }
+
+    #[test]
+    fn autofix_preserves_surrounding_code() {
+        let linter = Linter::new(vec![Box::new(NoDebugger)]);
+        let result = linter.lint_and_fix("var x = 1;\ndebugger;\nvar y = 2;");
+        assert!(result.fixed);
+        assert_eq!(result.output, "var x = 1;\n\nvar y = 2;");
     }
 
     // ================================================================

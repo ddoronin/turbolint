@@ -4,7 +4,7 @@ A port of [ESLint](https://eslint.org/) to Rust, aiming to be a fast drop-in rep
 
 turbolint reimplements ESLint's rules natively in Rust, producing the same output format. The goal is full compatibility with ESLint's behavior — same rule names, same diagnostics, same exit codes.
 
-> **Note:** turbolint is in early development. It supports `eslint.config.js` for rule configuration and `--fix` for autofixing, but does not yet cover ESLint's full feature set. See [Current limitations](#current-limitations) for details.
+> **Note:** turbolint is in early development. It supports native `.turbolintrc` config (JSON and TOML), `--fix` for autofixing, and `--rule` for running specific rules. See [Current limitations](#current-limitations) for details.
 
 ## Installation
 
@@ -50,7 +50,102 @@ Use `--fix` to automatically fix problems where possible:
 turbolint --fix src/
 ```
 
-Rules with autofix support: `eqeqeq`, `no-extra-semi`, `no-floating-decimal`, `no-var`.
+Rules with autofix support (10 rules): `eqeqeq`, `no-debugger`, `no-extra-semi`, `no-floating-decimal`, `no-undef-init`, `no-unneeded-ternary`, `no-useless-escape`, `no-useless-rename`, `no-useless-return`, `no-var`.
+
+### Run specific rules
+
+Use `--rule` to run only specific rules (can be repeated):
+
+```sh
+turbolint --rule no-var src/
+turbolint --rule no-var --rule eqeqeq src/
+```
+
+When `--rule` is set, only the named rules run. Severity is taken from config if present, otherwise defaults.
+
+### JSON output
+
+Use `--format json` (or `-f json`) for machine-readable ESLint-compatible JSON output:
+
+```sh
+turbolint -f json src/
+```
+
+Output matches ESLint's JSON format:
+
+```json
+[
+  {
+    "filePath": "/abs/path/file.js",
+    "messages": [
+      {
+        "ruleId": "no-unused-vars",
+        "severity": 2,
+        "message": "'x' is defined but never used",
+        "line": 3,
+        "column": 7,
+        "endLine": 3,
+        "endColumn": 8,
+        "fix": { "range": [14, 24], "text": "" }
+      }
+    ],
+    "errorCount": 1,
+    "warningCount": 0,
+    "fixableErrorCount": 0,
+    "fixableWarningCount": 0
+  }
+]
+```
+
+### Stdin
+
+Read source from stdin with `--stdin`. Use `--stdin-filename` for language detection and config resolution:
+
+```sh
+echo "var x = 1;" | turbolint --stdin --stdin-filename src/file.js
+echo "var x = 1;" | turbolint --stdin -f json
+```
+
+When combined with `--fix`, the fixed source is written to stdout (no files are modified):
+
+```sh
+echo "var x = 1;" | turbolint --stdin --fix
+# outputs: let x = 1;
+```
+
+### Quiet mode
+
+Use `--quiet` to suppress warnings and only report errors:
+
+```sh
+turbolint --quiet src/
+```
+
+### Max warnings
+
+Use `--max-warnings` to fail if the warning count exceeds a threshold:
+
+```sh
+turbolint --max-warnings 10 src/
+```
+
+### AI coding tools integration
+
+turbolint is designed to work well with AI coding harnesses (Claude Code, Cursor, Aider, Cline, etc.):
+
+```sh
+# Lint an unsaved buffer and get structured JSON output
+echo "$BUFFER" | turbolint --stdin --stdin-filename file.js -f json
+
+# Autofix an unsaved buffer without writing to disk
+echo "$BUFFER" | turbolint --stdin --fix
+
+# Only report errors, skip warnings
+turbolint --quiet -f json src/
+
+# Run only specific rules for faster feedback
+turbolint --rule no-var --rule eqeqeq -f json src/
+```
 
 ### Example output
 
@@ -64,7 +159,57 @@ src/index.js
 ### Exit codes
 
 - `0` — no errors found
-- `1` — one or more errors found
+- `1` — one or more errors found, or `--max-warnings` threshold exceeded
+
+## Config
+
+turbolint uses its own native config format — no Node.js required.
+
+### Initialize config
+
+Generate a default `.turbolintrc` with all rules:
+
+```sh
+turbolint --init
+```
+
+This creates a `.turbolintrc` file with every rule set to its default severity and sensible ignore patterns.
+
+### Config format
+
+turbolint searches for config files in the current directory and parent directories, in this order:
+
+1. `.turbolintrc.toml`
+2. `.turbolintrc.json`
+3. `.turbolintrc` (parsed as JSON)
+
+**JSON** (`.turbolintrc` or `.turbolintrc.json`):
+
+```json
+{
+  "rules": {
+    "no-var": "error",
+    "eqeqeq": "warn",
+    "no-debugger": "off"
+  },
+  "ignores": ["dist/**", "node_modules/**"]
+}
+```
+
+**TOML** (`.turbolintrc.toml`):
+
+```toml
+ignores = ["dist/**", "node_modules/**"]
+
+[rules]
+no-var = "error"
+eqeqeq = "warn"
+no-debugger = "off"
+```
+
+Rule severity values: `"error"` (or `2`), `"warn"` (or `1`), `"off"` (or `0`).
+
+If no config file is found, all rules run at their default severity.
 
 ## Migrating from ESLint
 
@@ -80,19 +225,15 @@ Replace `eslint` with `turbolint` in your scripts:
  }
 ```
 
+To migrate your ESLint config, create a `.turbolintrc.json` with the rules you need. turbolint no longer reads `eslint.config.js` — use `turbolint --init` to generate a starting config, then adjust as needed.
+
 Today, turbolint can be used alongside ESLint to get faster feedback on the rules it already supports.
-
-## Config
-
-turbolint reads your existing `eslint.config.js` (or `.mjs`/`.cjs`) — no separate config needed. It evaluates the config via Node.js to resolve `files`, `ignores`, and `rules` with their severity levels.
-
-If Node.js is not installed, config files are skipped and all rules run at default severity.
 
 ## Current limitations
 
 - **Partial rule coverage** — 292 of ESLint's 294 rules are ported. See below for the current list.
 - **No plugins** — only built-in rules are available.
-- **Limited autofix** — `--fix` is supported but only 4 rules have fixes so far.
+- **Limited autofix** — `--fix` is supported with 10 rules having fixes so far.
 
 ## Supported rules (292 / 294)
 

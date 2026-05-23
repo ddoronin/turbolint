@@ -1,5 +1,5 @@
 use turbolint_core::context::RuleContext;
-use turbolint_core::diagnostic::Severity;
+use turbolint_core::diagnostic::{Fix, Severity, Span};
 use turbolint_core::Rule;
 use tree_sitter::Node;
 
@@ -31,10 +31,16 @@ impl Rule for NoUselessReturn {
                         let last = parent.named_child(parent.named_child_count().saturating_sub(1));
                         if let Some(last_stmt) = last {
                             if last_stmt.id() == node.id() {
-                                ctx.report(
-                                    node.start_byte() as u32,
-                                    node.end_byte() as u32,
+                                let start = node.start_byte() as u32;
+                                let end = node.end_byte() as u32;
+                                ctx.report_with_fix(
+                                    start,
+                                    end,
                                     "Unnecessary return statement.",
+                                    Fix {
+                                        range: Span { start, end },
+                                        text: String::new(),
+                                    },
                                 );
                             }
                         }
@@ -49,6 +55,7 @@ impl Rule for NoUselessReturn {
 mod tests {
     use super::*;
     use crate::test_helpers::lint;
+    use turbolint_core::Linter;
 
     #[test]
     fn valid() {
@@ -61,5 +68,12 @@ mod tests {
             "function foo() { bar(); return; }",
         );
         assert_eq!(d.len(), 1);
+    }
+    #[test]
+    fn autofix_removes_return() {
+        let linter = Linter::new(vec![Box::new(NoUselessReturn)]);
+        let result = linter.lint_and_fix("function foo() { bar(); return; }");
+        assert!(result.fixed);
+        assert_eq!(result.output, "function foo() { bar();  }");
     }
 }

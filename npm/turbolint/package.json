@@ -1,6 +1,6 @@
 {
   "name": "@turbolint/turbolint",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "A fast Rust-based ESLint reimplementation",
   "license": "MIT",
   "repository": {
@@ -14,12 +14,12 @@
     "node": ">=14"
   },
   "optionalDependencies": {
-    "@turbolint/cli-darwin-arm64": "0.11.0",
-    "@turbolint/cli-darwin-x64": "0.11.0",
-    "@turbolint/cli-linux-x64": "0.11.0",
-    "@turbolint/cli-linux-arm64": "0.11.0",
-    "@turbolint/cli-linux-x64-musl": "0.11.0",
-    "@turbolint/cli-win32-x64": "0.11.0"
+    "@turbolint/cli-darwin-arm64": "0.12.0",
+    "@turbolint/cli-darwin-x64": "0.12.0",
+    "@turbolint/cli-linux-x64": "0.12.0",
+    "@turbolint/cli-linux-arm64": "0.12.0",
+    "@turbolint/cli-linux-x64-musl": "0.12.0",
+    "@turbolint/cli-win32-x64": "0.12.0"
   },
   "files": [
     "bin/turbolint"

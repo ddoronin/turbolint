@@ -1,4 +1,4 @@
-//! Integration tests verifying turbolint reads and respects eslint.config.js.
+//! Integration tests verifying turbolint reads and respects .turbolintrc config.
 //!
 //! These tests create temporary directories with config files and JS sources,
 //! then invoke the `turbolint` binary and check its output and exit code.
@@ -14,14 +14,6 @@ fn turbolint_bin() -> PathBuf {
     path.pop(); // workspace root
     path.push("target/debug/turbolint");
     path
-}
-
-fn node_available() -> bool {
-    Command::new("node")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
 }
 
 struct TempDir {
@@ -78,15 +70,10 @@ struct RunResult {
 
 #[test]
 fn config_enables_only_one_rule() {
-    if !node_available() {
-        eprintln!("Skipping: Node.js not available");
-        return;
-    }
-
     let dir = TempDir::new("enables_one_rule");
     dir.write_file(
-        "eslint.config.js",
-        r#"module.exports = [{ rules: { "no-debugger": "error" } }];"#,
+        ".turbolintrc.json",
+        r#"{ "rules": { "no-debugger": "error" } }"#,
     );
     // This file triggers no-debugger but also has `var` (no-var should NOT fire)
     dir.write_file("test.js", "var x = 1;\ndebugger;\n");
@@ -107,15 +94,10 @@ fn config_enables_only_one_rule() {
 
 #[test]
 fn config_turns_rule_off() {
-    if !node_available() {
-        eprintln!("Skipping: Node.js not available");
-        return;
-    }
-
     let dir = TempDir::new("turns_rule_off");
     dir.write_file(
-        "eslint.config.js",
-        r#"module.exports = [{ rules: { "no-debugger": "off" } }];"#,
+        ".turbolintrc.json",
+        r#"{ "rules": { "no-debugger": "off" } }"#,
     );
     dir.write_file("test.js", "debugger;\n");
 
@@ -130,15 +112,10 @@ fn config_turns_rule_off() {
 
 #[test]
 fn config_sets_rule_to_warn() {
-    if !node_available() {
-        eprintln!("Skipping: Node.js not available");
-        return;
-    }
-
     let dir = TempDir::new("sets_warn");
     dir.write_file(
-        "eslint.config.js",
-        r#"module.exports = [{ rules: { "no-debugger": "warn" } }];"#,
+        ".turbolintrc.json",
+        r#"{ "rules": { "no-debugger": "warn" } }"#,
     );
     dir.write_file("test.js", "debugger;\n");
 
@@ -159,15 +136,10 @@ fn config_sets_rule_to_warn() {
 
 #[test]
 fn config_numeric_severity() {
-    if !node_available() {
-        eprintln!("Skipping: Node.js not available");
-        return;
-    }
-
     let dir = TempDir::new("numeric_severity");
     dir.write_file(
-        "eslint.config.js",
-        r#"module.exports = [{ rules: { "no-debugger": 2, "no-var": 0 } }];"#,
+        ".turbolintrc.json",
+        r#"{ "rules": { "no-debugger": 2, "no-var": 0 } }"#,
     );
     dir.write_file("test.js", "var x = 1;\ndebugger;\n");
 
@@ -179,18 +151,10 @@ fn config_numeric_severity() {
 
 #[test]
 fn config_ignores_files() {
-    if !node_available() {
-        eprintln!("Skipping: Node.js not available");
-        return;
-    }
-
     let dir = TempDir::new("ignores_files");
     dir.write_file(
-        "eslint.config.js",
-        r#"module.exports = [
-            { rules: { "no-debugger": "error" } },
-            { ignores: ["vendor/**"] }
-        ];"#,
+        ".turbolintrc.json",
+        r#"{ "rules": { "no-debugger": "error" }, "ignores": ["vendor/**"] }"#,
     );
     dir.write_file("vendor/lib.js", "debugger;\n");
     dir.write_file("src/app.js", "debugger;\n");
@@ -210,66 +174,8 @@ fn config_ignores_files() {
 }
 
 #[test]
-fn config_files_pattern_limits_scope() {
-    if !node_available() {
-        eprintln!("Skipping: Node.js not available");
-        return;
-    }
-
-    let dir = TempDir::new("files_pattern");
-    // Only apply no-debugger to test files
-    dir.write_file(
-        "eslint.config.js",
-        r#"module.exports = [
-            { files: ["test/**"], rules: { "no-debugger": "error" } }
-        ];"#,
-    );
-    dir.write_file("test/spec.js", "debugger;\n");
-    dir.write_file("src/app.js", "debugger;\n");
-
-    let result_test = dir.run(&["test/spec.js"]);
-    assert!(
-        result_test.stdout.contains("no-debugger"),
-        "test file should match files pattern: {}",
-        result_test.stdout
-    );
-
-    let result_src = dir.run(&["src/app.js"]);
-    assert!(
-        !result_src.stdout.contains("no-debugger"),
-        "src file should NOT match files pattern: {}",
-        result_src.stdout
-    );
-}
-
-#[test]
-fn config_later_object_overrides_earlier() {
-    if !node_available() {
-        eprintln!("Skipping: Node.js not available");
-        return;
-    }
-
-    let dir = TempDir::new("override");
-    dir.write_file(
-        "eslint.config.js",
-        r#"module.exports = [
-            { rules: { "no-debugger": "error" } },
-            { rules: { "no-debugger": "off" } }
-        ];"#,
-    );
-    dir.write_file("test.js", "debugger;\n");
-
-    let result = dir.run(&["test.js"]);
-    assert_eq!(
-        result.exit_code, 0,
-        "second config turns rule off, should exit 0"
-    );
-    assert!(!result.stdout.contains("no-debugger"));
-}
-
-#[test]
 fn no_config_runs_all_rules_at_default() {
-    // No eslint.config.js in the dir — all rules should run at default
+    // No config file in the dir — all rules should run at default
     let dir = TempDir::new("no_config");
     dir.write_file("test.js", "var x = 1;\ndebugger;\n");
 
@@ -289,16 +195,11 @@ fn no_config_runs_all_rules_at_default() {
 
 #[test]
 fn config_fix_respects_config() {
-    if !node_available() {
-        eprintln!("Skipping: Node.js not available");
-        return;
-    }
-
     let dir = TempDir::new("fix_respects_config");
     // Only enable eqeqeq, not no-var
     dir.write_file(
-        "eslint.config.js",
-        r#"module.exports = [{ rules: { "eqeqeq": "error" } }];"#,
+        ".turbolintrc.json",
+        r#"{ "rules": { "eqeqeq": "error" } }"#,
     );
     dir.write_file("test.js", "var x = 1;\nif (x == 2) {}\n");
 
@@ -319,21 +220,16 @@ fn config_fix_respects_config() {
 
 #[test]
 fn config_multiple_rules_mixed_severity() {
-    if !node_available() {
-        eprintln!("Skipping: Node.js not available");
-        return;
-    }
-
     let dir = TempDir::new("mixed_severity");
     dir.write_file(
-        "eslint.config.js",
-        r#"module.exports = [{
-            rules: {
+        ".turbolintrc.json",
+        r#"{
+            "rules": {
                 "no-debugger": "error",
                 "no-var": "warn",
                 "eqeqeq": "off"
             }
-        }];"#,
+        }"#,
     );
     dir.write_file("test.js", "var x = 1;\ndebugger;\nif (x == 2) {}\n");
 
@@ -348,17 +244,11 @@ fn config_multiple_rules_mixed_severity() {
 }
 
 #[test]
-fn config_cjs_extension() {
-    if !node_available() {
-        eprintln!("Skipping: Node.js not available");
-        return;
-    }
-
-    let dir = TempDir::new("cjs_ext");
-    // Use .cjs extension
+fn config_toml_format() {
+    let dir = TempDir::new("toml_format");
     dir.write_file(
-        "eslint.config.cjs",
-        r#"module.exports = [{ rules: { "no-debugger": "error" } }];"#,
+        ".turbolintrc.toml",
+        "[rules]\nno-debugger = \"error\"\n",
     );
     dir.write_file("test.js", "debugger;\n");
 
@@ -366,24 +256,16 @@ fn config_cjs_extension() {
     assert_eq!(result.exit_code, 1);
     assert!(
         result.stdout.contains("no-debugger"),
-        "should load .cjs config: {}",
+        "should load .toml config: {}",
         result.stdout
     );
 }
 
 #[test]
 fn config_empty_rules_runs_defaults() {
-    if !node_available() {
-        eprintln!("Skipping: Node.js not available");
-        return;
-    }
-
     let dir = TempDir::new("empty_rules");
     // Config exists but has no rules — should run all rules at default
-    dir.write_file(
-        "eslint.config.js",
-        r#"module.exports = [{}];"#,
-    );
+    dir.write_file(".turbolintrc.json", "{}");
     dir.write_file("test.js", "debugger;\nvar x = 1;\n");
 
     let result = dir.run(&["test.js"]);
@@ -397,4 +279,33 @@ fn config_empty_rules_runs_defaults() {
         "empty config should run defaults: {}",
         result.stdout
     );
+}
+
+#[test]
+fn rule_flag_runs_only_specified_rules() {
+    let dir = TempDir::new("rule_flag");
+    dir.write_file("test.js", "var x = 1;\ndebugger;\n");
+
+    let result = dir.run(&["--rule", "no-var", "test.js"]);
+    assert!(
+        result.stdout.contains("no-var"),
+        "should report no-var: {}",
+        result.stdout
+    );
+    assert!(
+        !result.stdout.contains("no-debugger"),
+        "should NOT report no-debugger with --rule no-var: {}",
+        result.stdout
+    );
+}
+
+#[test]
+fn rule_flag_multiple_rules() {
+    let dir = TempDir::new("rule_flag_multi");
+    dir.write_file("test.js", "var x = 1;\ndebugger;\nif (x == 2) {}\n");
+
+    let result = dir.run(&["--rule", "no-var", "--rule", "eqeqeq", "test.js"]);
+    assert!(result.stdout.contains("no-var"));
+    assert!(result.stdout.contains("eqeqeq"));
+    assert!(!result.stdout.contains("no-debugger"));
 }

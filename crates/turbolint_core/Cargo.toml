@@ -7,3 +7,4 @@ edition = "2021"
 turbolint_parser = { path = "../turbolint_parser" }
 tree-sitter = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true }

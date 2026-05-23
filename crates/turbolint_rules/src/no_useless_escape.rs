@@ -1,5 +1,5 @@
 use turbolint_core::context::RuleContext;
-use turbolint_core::diagnostic::Severity;
+use turbolint_core::diagnostic::{Fix, Severity, Span};
 use turbolint_core::Rule;
 use tree_sitter::Node;
 
@@ -54,10 +54,18 @@ fn check_string(node: &Node, ctx: &RuleContext) {
                     i += 4;
                     continue;
                 }
-                ctx.report(
-                    (node.start_byte() + i) as u32,
-                    (node.start_byte() + i + 2) as u32,
+                let backslash_pos = node.start_byte() + i;
+                ctx.report_with_fix(
+                    backslash_pos as u32,
+                    (backslash_pos + 2) as u32,
                     format!("Unnecessary escape character: \\{}.", next as char),
+                    Fix {
+                        range: Span {
+                            start: backslash_pos as u32,
+                            end: (backslash_pos + 1) as u32,
+                        },
+                        text: String::new(),
+                    },
                 );
             }
             i += 2;
@@ -103,10 +111,18 @@ fn check_template(node: &Node, ctx: &RuleContext) {
             {
                 // valid escape
             } else {
-                ctx.report(
-                    (node.start_byte() + i) as u32,
-                    (node.start_byte() + i + 2) as u32,
+                let backslash_pos = node.start_byte() + i;
+                ctx.report_with_fix(
+                    backslash_pos as u32,
+                    (backslash_pos + 2) as u32,
                     format!("Unnecessary escape character: \\{}.", next as char),
+                    Fix {
+                        range: Span {
+                            start: backslash_pos as u32,
+                            end: (backslash_pos + 1) as u32,
+                        },
+                        text: String::new(),
+                    },
                 );
             }
             i += 2;
@@ -120,6 +136,7 @@ fn check_template(node: &Node, ctx: &RuleContext) {
 mod tests {
     use super::*;
     use crate::test_helpers::lint;
+    use turbolint_core::Linter;
 
     #[test]
     fn valid() {
@@ -146,5 +163,19 @@ mod tests {
     fn invalid_template() {
         let d = lint(Box::new(NoUselessEscape), r#"var x = `he\llo`;"#);
         assert_eq!(d.len(), 1);
+    }
+    #[test]
+    fn autofix_removes_backslash_in_string() {
+        let linter = Linter::new(vec![Box::new(NoUselessEscape)]);
+        let result = linter.lint_and_fix(r#"var x = "he\llo";"#);
+        assert!(result.fixed);
+        assert_eq!(result.output, r#"var x = "hello";"#);
+    }
+    #[test]
+    fn autofix_removes_backslash_in_template() {
+        let linter = Linter::new(vec![Box::new(NoUselessEscape)]);
+        let result = linter.lint_and_fix(r#"var x = `he\llo`;"#);
+        assert!(result.fixed);
+        assert_eq!(result.output, r#"var x = `hello`;"#);
     }
 }
