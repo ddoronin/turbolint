@@ -48,14 +48,6 @@ impl Linter {
     pub fn lint_lang(&self, source: &str, lang: Language) -> LintResult {
         let line_index = LineIndex::new(source);
         let tree = turbolint_parser::parse_lang(source, lang);
-
-        if tree.root_node().has_error() {
-            return LintResult {
-                diagnostics: Vec::new(),
-                line_index,
-            };
-        }
-
         let root = tree.root_node();
         let diagnostics = if let Some(ref severities) = self.severity_overrides {
             run_rules_with_severities(root, &self.rules, severities, source)

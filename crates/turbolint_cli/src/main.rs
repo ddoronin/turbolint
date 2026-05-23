@@ -3,6 +3,8 @@ use std::path::Path;
 use std::process;
 
 use clap::Parser;
+use colored::Colorize;
+use rayon::prelude::*;
 use turbolint_config::{Config, ConfigSeverity};
 use turbolint_core::line_index::LineIndex;
 use turbolint_core::{Diagnostic, Language, Linter, Rule, Severity};
@@ -81,38 +83,87 @@ fn format_message(msg: &str) -> &str {
     msg.strip_suffix('.').unwrap_or(msg)
 }
 
-fn print_results(path: &str, diagnostics: &[Diagnostic], line_index: &LineIndex) {
-    // Find the widest line number and column for alignment
-    let mut max_line_width = 0;
-    let mut max_col_width = 0;
+fn print_results(path: &str, diagnostics: &[Diagnostic], line_index: &LineIndex, source: &str) {
+    let source_lines: Vec<&str> = source.lines().collect();
+
     let positions: Vec<(usize, usize)> = diagnostics
         .iter()
-        .map(|d| {
-            let (line, col) = line_index.line_col(d.span.start);
-            let line_str = line.to_string();
-            let col_str = col.to_string();
-            if line_str.len() > max_line_width {
-                max_line_width = line_str.len();
-            }
-            if col_str.len() > max_col_width {
-                max_col_width = col_str.len();
-            }
-            (line, col)
-        })
+        .map(|d| line_index.line_col(d.span.start))
         .collect();
 
-    println!();
-    println!("{path}");
-
     for (d, (line, col)) in diagnostics.iter().zip(positions.iter()) {
+        // Header: error[rule-id]: message
+        let (severity_label, severity_color): (&str, fn(&str) -> colored::ColoredString) = match d.severity {
+            Severity::Error => ("error", |s: &str| s.red()),
+            Severity::Warning => ("warning", |s: &str| s.yellow()),
+        };
         println!(
-            "  {line:>lw$}:{col:<cw$}  {severity:<7}  {msg}  {rule}",
-            lw = max_line_width,
-            cw = max_col_width,
-            severity = d.severity,
-            msg = format_message(&d.message),
-            rule = d.rule_id,
+            "{}{}{}{} {}",
+            severity_color(severity_label).bold(),
+            "[".bold(),
+            severity_color(d.rule_id).bold(),
+            "]".bold(),
+            format_message(&d.message).bold(),
         );
+
+        // Location: --> path:line:col
+        let line_idx = line.saturating_sub(1);
+        let start = line_idx.saturating_sub(2);
+        let end = (line_idx + 3).min(source_lines.len());
+        let gutter_width = end.to_string().len();
+
+        println!(
+            " {} {}:{}:{}",
+            format!("{:>gw$}-->", "", gw = gutter_width).cyan().bold(),
+            path,
+            line,
+            col,
+        );
+
+        // Top border
+        println!(" {} {}", format!("{:>gw$}", "", gw = gutter_width).cyan().bold(), "|".cyan().bold());
+
+        for i in start..end {
+            let ln = i + 1;
+            if i == line_idx {
+                println!(
+                    " {} {} {}",
+                    format!("{ln:>gw$}", gw = gutter_width).cyan().bold(),
+                    "|".cyan().bold(),
+                    source_lines[i],
+                );
+
+                // Underline with ^
+                let col_0 = col.saturating_sub(1);
+                let span_len = if d.span.end > d.span.start {
+                    let len = (d.span.end - d.span.start) as usize;
+                    let remaining = source_lines[i].len().saturating_sub(col_0);
+                    len.min(remaining).max(1)
+                } else {
+                    1
+                };
+                let padding = " ".repeat(col_0);
+                let underline = "^".repeat(span_len);
+                println!(
+                    " {} {} {}{}",
+                    format!("{:>gw$}", "", gw = gutter_width).cyan().bold(),
+                    "|".cyan().bold(),
+                    padding,
+                    severity_color(&underline).bold(),
+                );
+            } else {
+                println!(
+                    " {} {} {}",
+                    format!("{ln:>gw$}", gw = gutter_width).cyan().bold(),
+                    "|".cyan().bold(),
+                    source_lines[i].dimmed(),
+                );
+            }
+        }
+
+        // Bottom border
+        println!(" {} {}", format!("{:>gw$}", "", gw = gutter_width).cyan().bold(), "|".cyan().bold());
+        println!();
     }
 }
 
@@ -131,7 +182,32 @@ fn build_linter_for_file(
         None => return Linter::new(rules),
     };
 
-    let resolved = config.resolve_rules_for_file(file_path);
+    let mut resolved = config.resolve_rules_for_file(file_path);
+
+    // Map @typescript-eslint/* rules to core equivalents.
+    // When tseslint.configs.recommended disables a core rule and enables its
+    // TS-aware replacement (e.g. no-unused-vars → @typescript-eslint/no-unused-vars),
+    // use the TS rule's severity for the core rule.
+    let ts_prefix = "@typescript-eslint/";
+    let ts_overrides: Vec<(String, turbolint_config::ResolvedRuleConfig)> = resolved
+        .iter()
+        .filter_map(|(name, rc)| {
+            let core_name = name.strip_prefix(ts_prefix)?;
+            // Only apply if the core rule is off or absent
+            let core_off = resolved
+                .get(core_name)
+                .map_or(true, |c| c.severity == ConfigSeverity::Off);
+            if core_off && rc.severity != ConfigSeverity::Off {
+                Some((core_name.to_string(), rc.clone()))
+            } else {
+                None
+            }
+        })
+        .collect();
+    for (core_name, rc) in ts_overrides {
+        resolved.insert(core_name, rc);
+    }
+
     let config_has_any_rules = config.objects.iter().any(|o| !o.rules.is_empty());
 
     // If config has no rule entries at all (e.g. only ignores/files), run all rules at defaults
@@ -206,81 +282,125 @@ fn main() {
         }
     };
 
+    struct FileResult {
+        path: String,
+        source: String,
+        diagnostics: Vec<Diagnostic>,
+        line_index: LineIndex,
+        error: bool, // true if this entry represents a read/write error (counted but no diagnostics)
+    }
+
+    let results: Vec<FileResult> = resolved
+        .par_iter()
+        .filter(|path| {
+            if let Some(ref cfg) = config {
+                !is_globally_ignored(cfg, path)
+            } else {
+                true
+            }
+        })
+        .filter_map(|path| {
+            let source = match fs::read_to_string(path) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("Error reading {path}: {e}");
+                    return Some(FileResult {
+                        path: path.clone(),
+                        source: String::new(),
+                        diagnostics: Vec::new(),
+                        line_index: LineIndex::new(""),
+                        error: true,
+                    });
+                }
+            };
+
+            let lang = Path::new(path)
+                .extension()
+                .and_then(|e| e.to_str())
+                .and_then(Language::from_extension)
+                .unwrap_or(Language::JavaScript);
+
+            let linter = build_linter_for_file(&config, path);
+
+            if cli.fix {
+                let result = linter.lint_and_fix_lang(&source, lang);
+                if result.fixed {
+                    if let Err(e) = fs::write(path, &result.output) {
+                        eprintln!("Error writing {path}: {e}");
+                        return Some(FileResult {
+                            path: path.clone(),
+                            source: String::new(),
+                            diagnostics: Vec::new(),
+                            line_index: LineIndex::new(""),
+                            error: true,
+                        });
+                    }
+                }
+                if result.diagnostics.is_empty() {
+                    return None;
+                }
+                Some(FileResult {
+                    path: path.clone(),
+                    source: result.output,
+                    diagnostics: result.diagnostics,
+                    line_index: result.line_index,
+                    error: false,
+                })
+            } else {
+                let result = linter.lint_lang(&source, lang);
+                if result.diagnostics.is_empty() {
+                    return None;
+                }
+                Some(FileResult {
+                    path: path.clone(),
+                    source,
+                    diagnostics: result.diagnostics,
+                    line_index: result.line_index,
+                    error: false,
+                })
+            }
+        })
+        .collect();
+
     let mut error_count: usize = 0;
     let mut warning_count: usize = 0;
     let mut fixable_count: usize = 0;
 
-    for path in &resolved {
-        // Check if this file is globally ignored by config
-        if let Some(ref cfg) = config {
-            if is_globally_ignored(cfg, path) {
-                continue;
+    // Sort results by path for deterministic output order
+    let mut results = results;
+    results.sort_by(|a, b| a.path.cmp(&b.path));
+
+    for result in &results {
+        if result.error {
+            error_count += 1;
+            continue;
+        }
+        for d in &result.diagnostics {
+            match d.severity {
+                Severity::Error => error_count += 1,
+                Severity::Warning => warning_count += 1,
+            }
+            if !cli.fix && d.fix.is_some() {
+                fixable_count += 1;
             }
         }
-
-        let source = match fs::read_to_string(path) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("Error reading {path}: {e}");
-                error_count += 1;
-                continue;
-            }
-        };
-
-        let lang = Path::new(path)
-            .extension()
-            .and_then(|e| e.to_str())
-            .and_then(Language::from_extension)
-            .unwrap_or(Language::JavaScript);
-
-        let linter = build_linter_for_file(&config, path);
-
-        if cli.fix {
-            let result = linter.lint_and_fix_lang(&source, lang);
-            if result.fixed {
-                if let Err(e) = fs::write(path, &result.output) {
-                    eprintln!("Error writing {path}: {e}");
-                    error_count += 1;
-                    continue;
-                }
-            }
-            if result.diagnostics.is_empty() {
-                continue;
-            }
-            for d in &result.diagnostics {
-                match d.severity {
-                    Severity::Error => error_count += 1,
-                    Severity::Warning => warning_count += 1,
-                }
-            }
-            print_results(path, &result.diagnostics, &result.line_index);
-        } else {
-            let result = linter.lint_lang(&source, lang);
-            if result.diagnostics.is_empty() {
-                continue;
-            }
-            for d in &result.diagnostics {
-                match d.severity {
-                    Severity::Error => error_count += 1,
-                    Severity::Warning => warning_count += 1,
-                }
-                if d.fix.is_some() {
-                    fixable_count += 1;
-                }
-            }
-            print_results(path, &result.diagnostics, &result.line_index);
-        }
+        print_results(&result.path, &result.diagnostics, &result.line_index, &result.source);
     }
 
     let total = error_count + warning_count;
     if total > 0 {
         println!();
-        println!(
+        let summary = format!(
             "\u{2716} {total} {} ({error_count} {}, {warning_count} {})",
             pluralize("problem", total),
             pluralize("error", error_count),
             pluralize("warning", warning_count),
         );
+        if error_count > 0 {
+            println!("{}", summary.red().bold());
+        } else {
+            println!("{}", summary.yellow().bold());
+        }
         if !cli.fix && fixable_count > 0 {
             println!(
                 "  {} {} potentially fixable with the `--fix` option.",

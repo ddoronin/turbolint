@@ -17,9 +17,7 @@ impl Rule for NoCondAssign {
             return;
         }
         if let Some(parent) = node.parent() {
-            // Check if inside a condition (parenthesized_expression of if/while/do/for)
-            let in_condition = is_in_condition(&parent);
-            if in_condition {
+            if is_in_condition(&parent) {
                 ctx.report(
                     node.start_byte() as u32,
                     node.end_byte() as u32,
@@ -32,12 +30,16 @@ impl Rule for NoCondAssign {
 
 fn is_in_condition(node: &Node) -> bool {
     let mut current = Some(*node);
+    let mut paren_depth = 0u32;
     while let Some(n) = current {
         match n.kind() {
-            "if_statement" | "while_statement" | "do_statement" | "for_statement" => {
-                return true;
+            "if_statement" | "while_statement" | "do_statement" | "for_statement"
+            | "ternary_expression" => {
+                // In "except-parens" mode (default): allow if wrapped in extra parens (depth >= 2)
+                return paren_depth < 2;
             }
             "parenthesized_expression" => {
+                paren_depth += 1;
                 current = n.parent();
                 continue;
             }
@@ -58,8 +60,18 @@ mod tests {
         assert!(lint(Box::new(NoCondAssign), "var x = 1;").is_empty());
     }
     #[test]
+    fn valid_double_parens() {
+        assert!(lint(Box::new(NoCondAssign), "if ((x = 1)) {}").is_empty());
+        assert!(lint(Box::new(NoCondAssign), "while ((x = getNext())) {}").is_empty());
+    }
+    #[test]
     fn invalid() {
         let d = lint(Box::new(NoCondAssign), "if (x = 1) {}");
+        assert_eq!(d.len(), 1);
+    }
+    #[test]
+    fn invalid_ternary() {
+        let d = lint(Box::new(NoCondAssign), "var x = (y = 1) ? a : b;");
         assert_eq!(d.len(), 1);
     }
 }

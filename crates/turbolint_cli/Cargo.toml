@@ -14,3 +14,5 @@ turbolint_rules = { path = "../turbolint_rules" }
 clap = { workspace = true }
 miette = { workspace = true }
 glob = { workspace = true }
+rayon = { workspace = true }
+colored = { workspace = true }
